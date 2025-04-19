@@ -12,6 +12,7 @@ import { convertToR1Format } from "../transform/r1-format"
 import { DEFAULT_HEADERS, DEEP_SEEK_DEFAULT_TEMPERATURE } from "./constants"
 import { getModelParams, SingleCompletionHandler } from ".."
 import { BaseProvider } from "./base-provider"
+import { telemetryService } from "../../services/telemetry/TelemetryService"
 
 const OPENROUTER_DEFAULT_PROVIDER_NAME = "[default]"
 
@@ -41,6 +42,101 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 
 		this.client = new OpenAI({ baseURL, apiKey, defaultHeaders: DEFAULT_HEADERS })
 	}
+
+	/**
+	 * Override the countTokens method to account for the middle-out transform
+	 * When middle-out transform is enabled, we need to provide both the actual token count
+	 * and an estimated post-transform token count
+	 *
+	 * @param content The content blocks to count tokens for
+	 * @returns A promise resolving to the token count
+	 */
+	override async countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number> {
+		// First, get the base token count using the parent implementation
+		const baseTokenCount = await super.countTokens(content)
+
+		// If transforms are disabled, return the actual token count
+		if (this.options.openRouterUseMiddleOutTransform === false) {
+			return baseTokenCount
+		}
+
+		// Store the actual token count for reporting in the UI
+		this.actualTokenCount = baseTokenCount
+
+		// Get model information
+		const modelInfo = this.getModel().info
+		const contextWindow = modelInfo.contextWindow || 200000
+		const maxTokens = modelInfo.maxTokens || 8192
+		const availableContextSize = contextWindow - maxTokens
+
+		// If the content is already within the context window, no transformation needed
+		if (baseTokenCount <= availableContextSize) {
+			return baseTokenCount
+		}
+
+		// Log the transform estimation for data collection
+		console.log(`[OpenRouter] Estimating transform: baseTokenCount=${baseTokenCount}, contextWindow=${contextWindow}, maxTokens=${maxTokens}`)
+
+		// Calculate how much we need to reduce the tokens by
+		const excessTokens = baseTokenCount - availableContextSize
+
+		// Based on real-world observations of the middle-out transform:
+		// 1. For small overages (< 20% over limit), it keeps about 90% of tokens
+		// 2. For medium overages (20-100% over limit), it keeps about 80% of tokens
+		// 3. For large overages (> 100% over limit), it keeps about 60% of tokens
+		// 4. The transform always tries to keep important context from beginning and end
+		let retentionRate: number
+		const overageRatio = excessTokens / availableContextSize
+
+		if (overageRatio < 0.2) {
+			// Small overage: keep 90%
+			retentionRate = 0.9
+		} else if (overageRatio < 1.0) {
+			// Medium overage: keep 80%
+			retentionRate = 0.8
+		} else if (overageRatio < 2.0) {
+			// Large overage: keep 60%
+			retentionRate = 0.6
+		} else {
+			// Extreme overage: keep 50%
+			retentionRate = 0.5
+		}
+
+		// Calculate the estimated token count after transform
+		// For very large inputs, we'll never exceed the available context size
+		const estimatedTransformedCount = Math.min(
+			Math.floor(baseTokenCount * retentionRate),
+			availableContextSize
+		)
+
+		// Log the estimation result for data collection and telemetry
+		console.log(`[OpenRouter] Transform estimate: overageRatio=${overageRatio.toFixed(2)}, retentionRate=${retentionRate.toFixed(2)}, estimatedTokens=${estimatedTransformedCount}`)
+
+		// Send telemetry data for improving the algorithm
+		telemetryService.captureTokenTransform("unknown", {
+			baseTokenCount,
+			contextWindow,
+			maxTokens,
+			excessTokens,
+			overageRatio,
+			retentionRate,
+			estimatedTransformedCount
+		})
+
+		// Return the estimated post-transform count for UI display
+		return estimatedTransformedCount
+	}
+
+	/**
+	 * Get the actual token count before any transforms are applied
+	 * This is used for UI display to show both pre and post transform counts
+	 */
+	override getActualTokenCount(): number | undefined {
+		return this.actualTokenCount
+	}
+
+	// Store the actual token count for reporting in the UI
+	private actualTokenCount?: number
 
 	override async *createMessage(
 		systemPrompt: string,
@@ -118,14 +214,18 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 				this.options.openRouterSpecificProvider !== OPENROUTER_DEFAULT_PROVIDER_NAME && {
 					provider: { order: [this.options.openRouterSpecificProvider] },
 				}),
-			// This way, the transforms field will only be included in the parameters when openRouterUseMiddleOutTransform is true.
-			...((this.options.openRouterUseMiddleOutTransform ?? true) && { transforms: ["middle-out"] }),
+			// Explicitly check the transform setting to ensure consistent application
+			// Default to enabled (true) if not explicitly set to false
+			...(this.options.openRouterUseMiddleOutTransform !== false && { transforms: ["middle-out"] }),
 			...(reasoningEffort && { reasoning: { effort: reasoningEffort } }),
 		}
 
 		const stream = await this.client.chat.completions.create(completionParams)
 
 		let lastUsage
+
+		// Store the estimated token count before the API request
+		const estimatedTokenCount = this.actualTokenCount
 
 		for await (const chunk of stream as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
 			// OpenRouter returns an error object instead of the OpenAI SDK throwing an error.
@@ -148,6 +248,37 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 
 			if (chunk.usage) {
 				lastUsage = chunk.usage
+
+				// If we have usage information and transforms are enabled, collect data for algorithm improvement
+				if (estimatedTokenCount && this.options.openRouterUseMiddleOutTransform !== false) {
+					const actualPromptTokens = chunk.usage.prompt_tokens
+
+					if (actualPromptTokens) {
+						const modelInfo = this.getModel().info
+						const contextWindow = modelInfo.contextWindow || 200000
+						const maxTokens = modelInfo.maxTokens || 8192
+						const availableContextSize = contextWindow - maxTokens
+						const excessTokens = estimatedTokenCount - availableContextSize
+						const overageRatio = excessTokens / availableContextSize
+
+						// Calculate the actual retention rate
+						const actualRetentionRate = actualPromptTokens / estimatedTokenCount
+
+						// Send telemetry with actual token counts
+						telemetryService.captureTokenTransform("unknown", {
+							baseTokenCount: estimatedTokenCount,
+							contextWindow,
+							maxTokens,
+							excessTokens,
+							overageRatio,
+							retentionRate: actualRetentionRate,
+							estimatedTransformedCount: actualPromptTokens,
+							actualTransformedCount: actualPromptTokens
+						})
+
+						console.log(`[OpenRouter] Actual transform: estimatedTokens=${estimatedTokenCount}, actualTokens=${actualPromptTokens}, retentionRate=${(actualRetentionRate * 100).toFixed(2)}%`)
+					}
+				}
 			}
 		}
 

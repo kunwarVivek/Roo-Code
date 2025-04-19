@@ -18,6 +18,17 @@ export abstract class BaseProvider implements ApiHandler {
 	abstract getModel(): { id: string; info: ModelInfo }
 
 	/**
+	 * Gets the actual token count before any transforms are applied
+	 * Base implementation returns undefined as most providers don't support transforms
+	 * OpenRouterHandler overrides this to provide the actual token count
+	 *
+	 * @returns The actual token count or undefined if not applicable
+	 */
+	getActualTokenCount(): number | undefined {
+		return undefined
+	}
+
+	/**
 	 * Default token counting implementation using tiktoken
 	 * Providers can override this to use their native token counting endpoints
 	 *

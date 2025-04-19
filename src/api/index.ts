@@ -40,6 +40,15 @@ export interface ApiHandler {
 	 * @returns A promise resolving to the token count
 	 */
 	countTokens(content: Array<Anthropic.Messages.ContentBlockParam>): Promise<number>
+
+	/**
+	 * Gets the actual token count before any transforms are applied
+	 * This is primarily used by the OpenRouterHandler to report pre-transform token counts
+	 * Other providers can return undefined if they don't support transforms
+	 *
+	 * @returns The actual token count or undefined if not applicable
+	 */
+	getActualTokenCount?(): number | undefined
 }
 
 export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {

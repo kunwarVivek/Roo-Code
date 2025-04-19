@@ -409,6 +409,7 @@ export class Cline extends EventEmitter<ClineEvents> {
 				totalCost: tokenUsage.totalCost,
 				size: taskDirSize,
 				workspace: this.cwd,
+				actualTokenCount: tokenUsage.actualTokenCount,
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)
@@ -2696,7 +2697,17 @@ export class Cline extends EventEmitter<ClineEvents> {
 	// Metrics
 
 	public getTokenUsage() {
-		return getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
+		const tokenUsage = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
+
+		// If this is an OpenRouter provider, get the actual token count before transforms
+		if (this.apiConfiguration.apiProvider === "openrouter") {
+			const actualTokenCount = this.api.getActualTokenCount?.()
+			if (actualTokenCount !== undefined) {
+				tokenUsage.actualTokenCount = actualTokenCount
+			}
+		}
+
+		return tokenUsage
 	}
 
 	public recordToolUsage({ toolName, success = true }: { toolName: ToolName; success?: boolean }) {

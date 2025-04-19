@@ -53,6 +53,7 @@ import { ExperimentalSettings } from "./ExperimentalSettings"
 import { LanguageSettings } from "./LanguageSettings"
 import { About } from "./About"
 import { Section } from "./Section"
+import { TransformSettings } from "./TransformSettings"
 
 export interface SettingsViewRef {
 	checkUnsaveChanges: (then: () => void) => void
@@ -420,6 +421,17 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 							errorMessage={errorMessage}
 							setErrorMessage={setErrorMessage}
 						/>
+
+						{/* Add TransformSettings component for OpenRouter */}
+						{apiConfiguration?.apiProvider === "openrouter" && (
+							<TransformSettings
+								isOpenRouter={apiConfiguration?.apiProvider === "openrouter"}
+								openRouterTransformsEnabled={apiConfiguration?.openRouterUseMiddleOutTransform ?? true}
+								onToggleTransforms={(enabled) => setApiConfigurationField("openRouterUseMiddleOutTransform", enabled)}
+								currentTaskItem={extensionState.currentTaskItem}
+								contextTokens={extensionState.currentTaskItem?.tokensIn || 0}
+							/>
+						)}
 					</Section>
 				</div>
 

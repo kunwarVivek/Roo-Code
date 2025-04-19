@@ -27,6 +27,7 @@ export function getApiMetrics(messages: ClineMessage[]) {
 		totalCacheReads: undefined,
 		totalCost: 0,
 		contextTokens: 0,
+		actualTokenCount: undefined,
 	}
 
 	// Helper function to get total tokens from a message

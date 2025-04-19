@@ -33,7 +33,14 @@
 	"tokenProgress": {
 		"availableSpace": "Available space: {{amount}} tokens",
 		"tokensUsed": "Tokens used: {{used}} of {{total}}",
-		"reservedForResponse": "Reserved for model response: {{amount}} tokens"
+		"reservedForResponse": "Reserved for model response: {{amount}} tokens",
+		"transformsEnabled": "OpenRouter transforms are enabled. The UI shows {{contextTokens}} tokens after transformation, but the actual API request contains {{actualTokens}} tokens before transformation.",
+		"transformsDisabled": "OpenRouter transforms are disabled. Token counts shown are accurate.",
+		"transformDetails": "Transform details: {{retentionRate}}% retention rate applied due to {{overageRatio}}% overage.",
+		"transformStatus": "Transform Status",
+		"transformActive": "Transform Active",
+		"transformInactive": "Transform Inactive",
+		"transformSettings": "Transform Settings"
 	},
 	"reject": {
 		"title": "Reject",

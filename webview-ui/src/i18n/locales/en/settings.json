@@ -180,6 +180,17 @@
 				"title": "OpenRouter Provider Routing",
 				"description": "OpenRouter routes requests to the best available providers for your model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
 				"learnMore": "Learn more about provider routing"
+			},
+			"transforms": {
+				"title": "OpenRouter Transforms",
+				"description": "When enabled, OpenRouter will compress prompts that exceed the model's context window by removing content from the middle. This allows you to send larger prompts without errors, but may affect the model's understanding of the content.",
+				"toggle": "Enable middle-out transform",
+				"active": "Active",
+				"status": "Transform Status",
+				"actualTokens": "Actual tokens",
+				"transformedTokens": "Transformed tokens",
+				"retentionRate": "Retention rate",
+				"overagePercent": "Overage percent"
 			}
 		},
 		"customModel": {

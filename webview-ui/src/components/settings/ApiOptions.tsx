@@ -383,17 +383,7 @@ const ApiOptions = ({
 									/>
 								)}
 							</div>
-							<Checkbox
-								checked={apiConfiguration?.openRouterUseMiddleOutTransform ?? true}
-								onChange={handleInputChange("openRouterUseMiddleOutTransform", noTransform)}>
-								<Trans
-									i18nKey="settings:providers.openRouterTransformsText"
-									components={{
-										// eslint-disable-next-line jsx-a11y/anchor-has-content
-										a: <a href="https://openrouter.ai/docs/transforms" />,
-									}}
-								/>
-							</Checkbox>
+							{/* Transform settings are now handled by the TransformSettings component */}
 						</>
 					)}
 				</>

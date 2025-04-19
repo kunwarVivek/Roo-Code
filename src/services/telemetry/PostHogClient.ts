@@ -28,6 +28,7 @@ export class PostHogClient {
 			CHECKPOINT_DIFFED: "Checkpoint Diffed",
 			CODE_ACTION_USED: "Code Action Used",
 			PROMPT_ENHANCED: "Prompt Enhanced",
+			TOKEN_TRANSFORM: "Token Transform Applied",
 		},
 		ERRORS: {
 			SCHEMA_VALIDATION_ERROR: "Schema Validation Error",

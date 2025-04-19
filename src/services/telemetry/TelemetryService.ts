@@ -141,6 +141,19 @@ class TelemetryService {
 		this.captureEvent(PostHogClient.EVENTS.ERRORS.CONSECUTIVE_MISTAKE_ERROR, { taskId })
 	}
 
+	public captureTokenTransform(taskId: string, data: {
+		baseTokenCount: number,
+		contextWindow: number,
+		maxTokens: number,
+		excessTokens: number,
+		overageRatio: number,
+		retentionRate: number,
+		estimatedTransformedCount: number,
+		actualTransformedCount?: number
+	}): void {
+		this.captureEvent(PostHogClient.EVENTS.TASK.TOKEN_TRANSFORM, { taskId, ...data })
+	}
+
 	/**
 	 * Checks if telemetry is currently enabled
 	 * @returns Whether telemetry is enabled

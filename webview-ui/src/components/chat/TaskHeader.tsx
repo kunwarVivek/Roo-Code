@@ -1,59 +1,62 @@
-import React, { memo, useMemo, useRef, useState } from "react"
-import { useWindowSize } from "react-use"
-import prettyBytes from "pretty-bytes"
+import React, { memo, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-
-import { vscode } from "@/utils/vscode"
+import { Button } from "../ui/button"
+import { Thumbnails } from "./Thumbnails"
 import { formatLargeNumber } from "@/utils/format"
-import { calculateTokenDistribution, getMaxTokensForModel } from "@/utils/model-utils"
-import { Button } from "@/components/ui"
-
-import { ClineMessage } from "../../../../src/shared/ExtensionMessage"
-import { mentionRegexGlobal } from "../../../../src/shared/context-mentions"
-import { HistoryItem } from "../../../../src/shared/HistoryItem"
-
-import { useExtensionState } from "../../context/ExtensionStateContext"
-import Thumbnails from "../common/Thumbnails"
+import { highlightMentions } from "@/utils/highlightMentions"
+import { useExtensionState } from "@/state/ExtensionContext"
+import { getMaxTokensForModel } from "@/utils/getMaxTokensForModel"
+import { calculateTokenDistribution } from "@/utils/calculateTokenDistribution"
+import { HistoryItem } from "@/types"
+import { mentionRegexGlobal } from "@/utils/mentionRegex"
+import { useWindowSize } from "@/hooks/useWindowSize"
+import { prettyBytes } from "@/utils/prettyBytes"
+import { vscode } from "@/vscode"
+import { useMemo } from "react"
 import { normalizeApiConfiguration } from "../settings/ApiOptions"
 import { DeleteTaskDialog } from "../history/DeleteTaskDialog"
 import { cn } from "@/lib/utils"
 import { VSCodeBadge } from "@vscode/webview-ui-toolkit/react"
+import { TransformIndicator } from "./TransformIndicator"
 
 interface TaskHeaderProps {
-	task: ClineMessage
-	tokensIn: number
-	tokensOut: number
-	doesModelSupportPromptCache: boolean
-	cacheWrites?: number
-	cacheReads?: number
-	totalCost: number
-	contextTokens: number
+	task: {
+		text: string
+		images?: string[]
+	}
 	onClose: () => void
 }
 
-const TaskHeader: React.FC<TaskHeaderProps> = ({
-	task,
-	tokensIn,
-	tokensOut,
-	doesModelSupportPromptCache,
-	cacheWrites,
-	cacheReads,
-	totalCost,
-	contextTokens,
-	onClose,
-}) => {
-	const { t } = useTranslation()
-	const { apiConfiguration, currentTaskItem } = useExtensionState()
-	const { selectedModelInfo } = useMemo(() => normalizeApiConfiguration(apiConfiguration), [apiConfiguration])
-	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
-
-	const textContainerRef = useRef<HTMLDivElement>(null)
-	const textRef = useRef<HTMLDivElement>(null)
-	const contextWindow = selectedModelInfo?.contextWindow || 1
-
+const TaskHeader = ({ task, onClose }: TaskHeaderProps) => {
+	const { extensionState } = useExtensionState()
 	const { width: windowWidth } = useWindowSize()
+	const { t } = useTranslation()
+	const [isTaskExpanded, setIsTaskExpanded] = useState(false)
+	const textRef = useRef<HTMLDivElement>(null)
+	const textContainerRef = useRef<HTMLDivElement>(null)
 
-	const shouldShowPromptCacheInfo = doesModelSupportPromptCache && apiConfiguration?.apiProvider !== "openrouter"
+	const {
+		contextWindow = 0,
+		contextTokens = 0,
+		tokensIn = 0,
+		tokensOut = 0,
+		cacheReads,
+		cacheWrites,
+		totalCost = 0,
+	} = extensionState.currentTaskItem || {}
+
+	const currentTaskItem = extensionState.currentTaskItem
+
+	// Determine if we should show prompt cache info
+	const shouldShowPromptCacheInfo = extensionState.apiConfiguration?.promptCacheEnabled
+
+	// Get the model info for the current model
+	const apiConfiguration = normalizeApiConfiguration(extensionState.apiConfiguration)
+	const selectedModelInfo = apiConfiguration?.selectedModel?.info
+
+	// Check if we're using OpenRouter
+	const isOpenRouter = apiConfiguration?.apiProvider === "openrouter"
+	const openRouterTransformsEnabled = isOpenRouter && (apiConfiguration?.openRouterUseMiddleOutTransform ?? true)
 
 	return (
 		<div className="py-2 px-3">
@@ -97,6 +100,15 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							maxTokens={getMaxTokensForModel(selectedModelInfo, apiConfiguration)}
 						/>
 						{!!totalCost && <VSCodeBadge>${totalCost.toFixed(2)}</VSCodeBadge>}
+						{isOpenRouter && (
+							<div className="flex items-center ml-2">
+								<TransformIndicator
+									isActive={openRouterTransformsEnabled}
+									contextTokens={contextTokens}
+									actualTokenCount={currentTaskItem?.actualTokenCount}
+								/>
+							</div>
+						)}
 					</div>
 				)}
 				{/* Expanded state: Show task text and images */}
@@ -132,6 +144,15 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 										contextTokens={contextTokens || 0}
 										maxTokens={getMaxTokensForModel(selectedModelInfo, apiConfiguration)}
 									/>
+									{isOpenRouter && (
+										<div className="flex items-center ml-2">
+											<TransformIndicator
+												isActive={openRouterTransformsEnabled}
+												contextTokens={contextTokens}
+												actualTokenCount={currentTaskItem?.actualTokenCount}
+											/>
+										</div>
+									)}
 								</div>
 							)}
 							<div className="flex justify-between items-center h-[20px]">

@@ -145,6 +145,7 @@ export const historyItemSchema = z.object({
 	totalCost: z.number(),
 	size: z.number().optional(),
 	workspace: z.string().optional(),
+	actualTokenCount: z.number().optional(),
 })
 
 export type HistoryItem = z.infer<typeof historyItemSchema>
@@ -813,6 +814,7 @@ export const tokenUsageSchema = z.object({
 	totalCacheReads: z.number().optional(),
 	totalCost: z.number(),
 	contextTokens: z.number(),
+	actualTokenCount: z.number().optional(),
 })
 
 export type TokenUsage = z.infer<typeof tokenUsageSchema>
